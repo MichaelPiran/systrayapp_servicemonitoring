@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"image/color"
 	"log"
@@ -144,6 +145,35 @@ func showDashboard() {
 func run(window *app.Window) error {
 	theme := material.NewTheme()
 	var ops op.Ops
+	var eventLogs string
+
+	fetchLogs := func() string {
+		// ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		// defer cancel()
+
+		psCommand := fmt.Sprintf("Get-EventLog -LogName Application -Source %s -Newest 10", serviceName)
+		cmd := exec.Command("powershell", "-Command", psCommand)
+
+		var out bytes.Buffer
+		cmd.Stdout = &out
+		if err := cmd.Run(); err != nil {
+			return fmt.Sprintf("Error fetching logs: %v", err)
+		}
+		return out.String()
+	}
+
+	// Ticker to fetch logs every 30 seconds
+	ticker := time.NewTicker(30 * time.Second)
+	defer ticker.Stop()
+
+	// Goroutine to fetch logs periodically
+	go func() {
+		for range ticker.C {
+			eventLogs = fetchLogs()
+			window.Invalidate()
+			log.Printf("fetching logs: %s", eventLogs)
+		}
+	}()
 
 	for {
 		switch e := window.Event().(type) {
