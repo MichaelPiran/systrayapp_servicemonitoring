@@ -9,14 +9,15 @@ import (
 	"os/exec"
 	"time"
 
-	"gioui.org/app"
-	"gioui.org/op"
-	"gioui.org/text"
-	"gioui.org/widget/material"
 	"github.com/getlantern/systray"
 	"github.com/shirou/gopsutil/process"
 	"golang.org/x/sys/windows/svc"
 	"golang.org/x/sys/windows/svc/mgr"
+
+	"gioui.org/app"
+	"gioui.org/op"
+	"gioui.org/text"
+	"gioui.org/widget/material"
 )
 
 var serviceName = "SmartabaseSyncService"
@@ -120,9 +121,10 @@ func showDashboard() {
 		if err != nil {
 			log.Fatal(err)
 		}
-		os.Exit(0)
+		// os.Exit(0)
 	}()
-	app.Main()
+	// app.Main()
+
 	// // PowerShell command to get the last 10 events from the specified service
 	// psCommand := fmt.Sprintf("Get-EventLog -LogName Application -Source %s -Newest 10", serviceName)
 
@@ -142,6 +144,7 @@ func showDashboard() {
 func run(window *app.Window) error {
 	theme := material.NewTheme()
 	var ops op.Ops
+
 	for {
 		switch e := window.Event().(type) {
 		case app.DestroyEvent:
