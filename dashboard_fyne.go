@@ -7,7 +7,7 @@ import (
 	"fyne.io/fyne/widget"
 )
 
-func showDashboard() {
+func setupDashboard() fyne.Window {
 	myApp := app.New()
 
 	// Set the application icon
@@ -25,5 +25,11 @@ func showDashboard() {
 
 	myWindow.SetContent(content)
 	myWindow.Resize(fyne.NewSize(300, 200))
-	myWindow.ShowAndRun()
+
+	return myWindow
+}
+
+func showDashboard() {
+
+	// myWindow.ShowAndRun()
 }
