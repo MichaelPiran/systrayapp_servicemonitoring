@@ -1,14 +1,13 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"os"
 	"time"
 
-	"fyne.io/fyne"
-	"fyne.io/fyne/app"
+	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/driver/desktop"
-	"fyne.io/fyne/v2/widget"
 )
 
 var serviceName = "SmartabaseSyncService"
@@ -16,9 +15,11 @@ var serviceName = "SmartabaseSyncService"
 // var serviceRunningIcon = getIcon("./images/icon1.ico")
 // var serviceStoppedIcon = getIcon("./images/icon1.ico")
 // var serviceNotInstalledIcon = getIcon("./images/icon1.ico")
-var serviceRunningIcon = "./images/icon1.ico"
-var serviceStoppedIcon = "./images/icon1.ico"
-var serviceNotInstalledIcon = "./images/icon1.ico"
+
+var appIcon = "./images/app_icon.png"
+var serviceRunningIcon = "./images/running.png"
+var serviceStoppedIcon = "./images/not_running.png"
+var serviceNotInstalledIcon = "./images/not_installed.png"
 
 func getIcon(s string) []byte {
 	b, err := os.ReadFile(s)
@@ -87,20 +88,9 @@ func getIcon(s string) []byte {
 // 	// Clean up here if needed
 // }
 
-func setupMainWindow(myApp fyne.App) fyne.Window {
-	myWindow := myApp.NewWindow("Fyne App with Custom Icon")
-	myWindow.SetContent(widget.NewLabel("Fyne System Tray"))
-	myWindow.SetCloseIntercept(func() {
-		myWindow.Hide() // Hide the window instead of closing it
-	})
-	running_icon, _ := fyne.LoadResourceFromPath(serviceRunningIcon)
-	myWindow.SetIcon(running_icon)
-	return myWindow
-}
-
 func runningSystrayMenu(myApp fyne.App, myWindow fyne.Window) *fyne.Menu {
 	return fyne.NewMenu("MyApp",
-		fyne.NewMenuItem("Service is running", func() {}),
+		fyne.NewMenuItem(fmt.Sprintf("%s running", serviceName), func() {}),
 		fyne.NewMenuItemSeparator(),
 		fyne.NewMenuItem("Show Dashboard", func() { myWindow.Show() }),
 		fyne.NewMenuItem("Stop service", func() { stopService(serviceName) }),
@@ -108,7 +98,7 @@ func runningSystrayMenu(myApp fyne.App, myWindow fyne.Window) *fyne.Menu {
 }
 func stoppedSystrayMenu(myApp fyne.App, myWindow fyne.Window) *fyne.Menu {
 	return fyne.NewMenu("MyApp",
-		fyne.NewMenuItem("Service is stopped", func() {}),
+		fyne.NewMenuItem(fmt.Sprintf("%s stopped", serviceName), func() {}),
 		fyne.NewMenuItemSeparator(),
 		fyne.NewMenuItem("Show Dashboard", func() { myWindow.Show() }),
 		fyne.NewMenuItem("Start service", func() { startService(serviceName) }),
@@ -116,7 +106,7 @@ func stoppedSystrayMenu(myApp fyne.App, myWindow fyne.Window) *fyne.Menu {
 }
 func notinstalledSystrayMenu(myApp fyne.App, myWindow fyne.Window) *fyne.Menu {
 	return fyne.NewMenu("MyApp",
-		fyne.NewMenuItem("Service is not installed", func() {}),
+		fyne.NewMenuItem(fmt.Sprintf("%s not installed", serviceName), func() {}),
 		fyne.NewMenuItemSeparator(),
 		fyne.NewMenuItem("Show Dashboard", func() { myWindow.Show() }),
 	)
@@ -161,14 +151,9 @@ func setupSystemTray(myApp fyne.App, myWindow fyne.Window) error {
 }
 
 func main() {
-	// Initialize the application
-	myApp := app.New()
-	if myApp == nil {
-		log.Fatal("Failed to initialize the application")
-	}
 
 	// Setup the main dashboard window
-	myWindow, err := setupDashboard(myApp)
+	myApp, myWindow, err := setupDashboard()
 	if err != nil {
 		log.Fatalf("Failed to set up dashboard: %v", err)
 	}
