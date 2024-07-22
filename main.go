@@ -116,6 +116,7 @@ func setupSystemTray(myApp fyne.App, myWindow fyne.Window) error {
 	running_icon, _ := fyne.LoadResourceFromPath(serviceRunningIcon)
 	stopped_icon, _ := fyne.LoadResourceFromPath(serviceStoppedIcon)
 	notinstalled_icon, _ := fyne.LoadResourceFromPath(serviceNotInstalledIcon)
+
 	if desk, ok := myApp.(desktop.App); ok {
 		// Set up initial icons and menu
 		m := runningSystrayMenu(myApp, myWindow)

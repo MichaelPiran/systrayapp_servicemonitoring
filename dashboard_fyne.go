@@ -42,7 +42,7 @@ func setupDashboard() (fyne.App, fyne.Window, error) {
 	myApp := app.New()
 
 	// Set the application icon
-	icon, err := fyne.LoadResourceFromPath(appIcon)
+	icon, err := fyne.LoadResourceFromPath(serviceRunningIcon)
 	if err != nil {
 		log.Printf("Failed to load application icon: %v", err)
 		// Consider whether you want to return the error or continue without the icon
@@ -51,7 +51,7 @@ func setupDashboard() (fyne.App, fyne.Window, error) {
 	}
 
 	myWindow := myApp.NewWindow(fmt.Sprintf("%s dashboard", serviceName))
-	myWindow.Resize(fyne.NewSize(600, 400))
+	myWindow.Resize(fyne.NewSize(1000, 400))
 
 	myWindow.SetContent(layoutDashboard())
 
@@ -71,10 +71,19 @@ func setupDashboard() (fyne.App, fyne.Window, error) {
 		outputStr := string(output)
 		lines := strings.Split(outputStr, "\n")
 
-		// Append each line to reportData
-		for _, line := range lines {
-			if line != "" { // Avoid appending empty lines
-				reportData = append(reportData, line)
+		if len(lines) > 0 {
+			lastLine := lines[len(lines)-1] // Get the last line
+
+			// Check if the last line is not empty and not already in reportData
+			found := false
+			for _, item := range reportData {
+				if item == lastLine {
+					found = true
+					break
+				}
+			}
+			if !found && lastLine != "" {
+				reportData = append(reportData, lastLine)
 			}
 		}
 		// reportData = append(reportData, fmt.Sprintf("Item %d", len(reportData)+1))
@@ -93,7 +102,7 @@ func setupDashboard() (fyne.App, fyne.Window, error) {
 	})
 
 	// Load and set the running icon for the window
-	runningIcon, err := fyne.LoadResourceFromPath(serviceRunningIcon)
+	runningIcon, err := fyne.LoadResourceFromPath(appIcon)
 	if err != nil {
 		log.Printf("Failed to load running icon: %v", err)
 		// Consider whether you want to return the error or continue without the icon
