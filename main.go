@@ -5,8 +5,8 @@ import (
 	"os"
 	"time"
 
-	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/app"
+	"fyne.io/fyne"
+	"fyne.io/fyne/app"
 	"fyne.io/fyne/v2/driver/desktop"
 	"fyne.io/fyne/v2/widget"
 )
@@ -19,11 +19,6 @@ var serviceName = "SmartabaseSyncService"
 var serviceRunningIcon = "./images/icon1.ico"
 var serviceStoppedIcon = "./images/icon1.ico"
 var serviceNotInstalledIcon = "./images/icon1.ico"
-
-// var myWindow fyne.Window
-
-// // Channel to send functions to be executed on the main thread
-// var mainQueue = make(chan func())
 
 func getIcon(s string) []byte {
 	b, err := os.ReadFile(s)
@@ -92,14 +87,6 @@ func getIcon(s string) []byte {
 // 	// Clean up here if needed
 // }
 
-func initializeApp() fyne.App {
-	myApp := app.New()
-	// Set the application icon
-	// icon, _ := fyne.LoadResourceFromPath("images/icon1.ico")
-	// myApp.SetIcon(icon)
-	return myApp
-}
-
 func setupMainWindow(myApp fyne.App) fyne.Window {
 	myWindow := myApp.NewWindow("Fyne App with Custom Icon")
 	myWindow.SetContent(widget.NewLabel("Fyne System Tray"))
@@ -135,7 +122,7 @@ func notinstalledSystrayMenu(myApp fyne.App, myWindow fyne.Window) *fyne.Menu {
 	)
 }
 
-func setupSystemTray(myApp fyne.App, myWindow fyne.Window) {
+func setupSystemTray(myApp fyne.App, myWindow fyne.Window) error {
 	running_icon, _ := fyne.LoadResourceFromPath(serviceRunningIcon)
 	stopped_icon, _ := fyne.LoadResourceFromPath(serviceStoppedIcon)
 	notinstalled_icon, _ := fyne.LoadResourceFromPath(serviceNotInstalledIcon)
@@ -170,11 +157,27 @@ func setupSystemTray(myApp fyne.App, myWindow fyne.Window) {
 		}()
 
 	}
+	return nil
 }
 
 func main() {
-	myApp := initializeApp()
-	myWindow := setupMainWindow(myApp)
-	setupSystemTray(myApp, myWindow)
+	// Initialize the application
+	myApp := app.New()
+	if myApp == nil {
+		log.Fatal("Failed to initialize the application")
+	}
+
+	// Setup the main dashboard window
+	myWindow, err := setupDashboard(myApp)
+	if err != nil {
+		log.Fatalf("Failed to set up dashboard: %v", err)
+	}
+
+	// Setup the system tray icon and menu
+	if err := setupSystemTray(myApp, myWindow); err != nil {
+		log.Fatalf("Failed to set up system tray: %v", err)
+	}
+
+	// Display the main window and start the application event loop
 	myWindow.ShowAndRun()
 }
