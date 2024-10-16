@@ -1,10 +1,10 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"os/exec"
-	"strings"
 	"time"
 
 	"fyne.io/fyne/v2"
@@ -13,27 +13,40 @@ import (
 	"fyne.io/fyne/v2/widget"
 )
 
-var reportData = []string{}
-var reportList *widget.List
+type EventLog struct {
+	TimeGenerated string `json:"TimeGenerated"`
+	Message       string `json:"Message"`
+}
+
+var eventLogs []EventLog
 
 func layoutDashboard() *fyne.Container {
-
-	// Crea una list widget per visualizzare i dati del report
-	reportList = widget.NewList(
-		func() int {
-			return len(reportData)
-		},
-		func() fyne.CanvasObject {
-			return widget.NewLabel("")
-		},
-		func(i widget.ListItemID, o fyne.CanvasObject) {
-			o.(*widget.Label).SetText(reportData[i])
+	// Create a table widget to display the event logs
+	table := widget.NewTable(
+		func() (int, int) { return len(eventLogs) + 1, 2 },
+		func() fyne.CanvasObject { return widget.NewLabel("") },
+		func(tci widget.TableCellID, co fyne.CanvasObject) {
+			label := co.(*widget.Label)
+			if tci.Row == 0 {
+				if tci.Col == 0 {
+					label.SetText("Time")
+				} else {
+					label.SetText("Message")
+				}
+			} else {
+				if tci.Col == 0 {
+					label.SetText(eventLogs[tci.Row-1].TimeGenerated)
+				} else {
+					label.SetText(eventLogs[tci.Row-1].Message)
+				}
+			}
 		},
 	)
 
-	content := container.NewStack(
-		reportList,
-	)
+	table.SetColumnWidth(0, 300)
+	table.SetColumnWidth(1, 500)
+
+	content := container.NewStack(table)
 	return content
 }
 
@@ -50,49 +63,40 @@ func setupDashboard() (fyne.App, fyne.Window, error) {
 		myApp.SetIcon(icon)
 	}
 
-	myWindow := myApp.NewWindow(fmt.Sprintf("%s dashboard", serviceName))
+	myWindow := myApp.NewWindow(fmt.Sprintf("%s event viewer", serviceName))
 	myWindow.Resize(fyne.NewSize(1000, 400))
 
 	myWindow.SetContent(layoutDashboard())
 
 	updateList := func() {
-		// Prepare the PowerShell command
-		cmdStr := fmt.Sprintf("Get-EventLog -LogName Application -Source %s -Newest 10", serviceName)
-		cmd := exec.Command("powershell", "-Command", cmdStr)
+		// Define the PowerShell command
+		cmd := exec.Command("powershell", "-Command", "Get-EventLog", "-LogName", "Application", "-Source", serviceName, "-Newest", lastEventCount, "| Select-Object @{Name='TimeGenerated';Expression={$_.TimeGenerated.ToString('yyyy-MM-dd HH:mm:ss')}}, Message | ConvertTo-Json")
+		// cmd := exec.Command("powershell", "-Command", `
+		// 	Get-EventLog -LogName Application -Source  -Newest 10 |
+		// 	Select-Object @{Name='TimeGenerated';Expression={$_.TimeGenerated.ToString('yyyy-MM-dd HH:mm:ss')}}, Message |
+		// 	ConvertTo-Json
+		// `)
 
-		// Execute the command and capture the output
-		output, err := cmd.Output()
+		// Capture the output
+		output, err := cmd.CombinedOutput()
 		if err != nil {
-			fmt.Println("Error executing command:", err)
+			fmt.Printf("Error executing command: %s\n", err)
 			return
 		}
 
-		// Convert output to string and split into lines if necessary
-		outputStr := string(output)
-		lines := strings.Split(outputStr, "\n")
-
-		if len(lines) > 0 {
-			lastLine := lines[len(lines)-1] // Get the last line
-
-			// Check if the last line is not empty and not already in reportData
-			found := false
-			for _, item := range reportData {
-				if item == lastLine {
-					found = true
-					break
-				}
-			}
-			if !found && lastLine != "" {
-				reportData = append(reportData, lastLine)
-			}
+		// Parse the JSON output
+		err = json.Unmarshal(output, &eventLogs)
+		if err != nil {
+			fmt.Printf("Error parsing JSON: %s\n", err)
+			return
 		}
-		// reportData = append(reportData, fmt.Sprintf("Item %d", len(reportData)+1))
-		reportList.Refresh()
+
+		// Refresh the table to display the updated data
+		myWindow.Content().Refresh()
 	}
 
 	go func() {
 		for range time.Tick(10 * time.Second) {
-			myWindow.Content().Refresh()
 			updateList()
 		}
 	}()
