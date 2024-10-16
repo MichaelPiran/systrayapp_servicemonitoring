@@ -50,42 +50,53 @@ func notinstalledSystrayMenu(myWindow fyne.Window) *fyne.Menu {
 }
 
 func setupSystemTray(myApp fyne.App, myWindow fyne.Window) error {
-	running_icon, _ := fyne.LoadResourceFromPath(serviceRunningIcon)
-	stopped_icon, _ := fyne.LoadResourceFromPath(serviceStoppedIcon)
-	notinstalled_icon, _ := fyne.LoadResourceFromPath(serviceNotInstalledIcon)
+	runningIcon, err := fyne.LoadResourceFromPath(serviceRunningIcon)
+	if err != nil {
+		return err
+	}
+	stoppedIcon, err := fyne.LoadResourceFromPath(serviceStoppedIcon)
+	if err != nil {
+		return err
+	}
+	notInstalledIcon, err := fyne.LoadResourceFromPath(serviceNotInstalledIcon)
+	if err != nil {
+		return err
+	}
 
 	if desk, ok := myApp.(desktop.App); ok {
 		// Set up initial icons and menu
-		m := runningSystrayMenu(myWindow)
-		desk.SetSystemTrayMenu(m)
-		desk.SetSystemTrayIcon(running_icon)
+		updateSystemTray(desk, myApp, myWindow, runningIcon, runningSystrayMenu(myWindow))
 
 		// Start the status checker
 		go func() {
+			var previousStatus int
 			for {
 				status := isServiceRunning(serviceName)
-				if status == 0 {
-					m := runningSystrayMenu(myWindow)
-					desk.SetSystemTrayMenu(m)
-					desk.SetSystemTrayIcon(running_icon)
-					myApp.SetIcon(running_icon)
-				} else if status == 1 {
-					m := stoppedSystrayMenu(myWindow)
-					desk.SetSystemTrayMenu(m)
-					desk.SetSystemTrayIcon(stopped_icon)
-					myApp.SetIcon(stopped_icon)
-				} else {
-					m := notinstalledSystrayMenu(myWindow)
-					desk.SetSystemTrayMenu(m)
-					desk.SetSystemTrayIcon(notinstalled_icon)
-					myApp.SetIcon(notinstalled_icon)
+				if status != previousStatus {
+					log.Printf("Service status changed")
+					log.Printf("%d", previousStatus)
+					log.Printf("%d", status)
+					previousStatus = status
+					switch status {
+					case 0:
+						updateSystemTray(desk, myApp, myWindow, runningIcon, runningSystrayMenu(myWindow))
+					case 1:
+						updateSystemTray(desk, myApp, myWindow, stoppedIcon, stoppedSystrayMenu(myWindow))
+					default:
+						updateSystemTray(desk, myApp, myWindow, notInstalledIcon, notinstalledSystrayMenu(myWindow))
+					}
 				}
 				time.Sleep(10 * time.Second)
 			}
 		}()
-
 	}
 	return nil
+}
+
+func updateSystemTray(desk desktop.App, myApp fyne.App, myWindow fyne.Window, icon fyne.Resource, menu *fyne.Menu) {
+	desk.SetSystemTrayMenu(menu)
+	desk.SetSystemTrayIcon(icon)
+	myApp.SetIcon(icon)
 }
 
 func main() {

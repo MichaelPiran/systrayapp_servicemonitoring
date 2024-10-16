@@ -10,6 +10,7 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
 	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 )
 
@@ -54,6 +55,7 @@ func setupDashboard() (fyne.App, fyne.Window, error) {
 	// Initialize the application
 	myApp := app.New()
 
+	myApp.Settings().SetTheme(theme.DarkTheme())
 	// Set the application icon
 	icon, err := fyne.LoadResourceFromPath(serviceRunningIcon)
 	if err != nil {
