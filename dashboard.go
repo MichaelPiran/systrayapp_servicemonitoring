@@ -1,145 +1,109 @@
 package main
 
-func showDashboard_gioui() {}
+import (
+	"encoding/json"
+	"fmt"
+	"log"
+	"os/exec"
+	"time"
 
-// import (
-// 	"bytes"
-// 	"fmt"
-// 	"image/color"
-// 	"log"
-// 	"os/exec"
-// 	"time"
+	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/widget"
+)
 
-// 	"gioui.org/app"
-// 	"gioui.org/layout"
-// 	"gioui.org/op"
-// 	"gioui.org/widget"
-// 	"gioui.org/widget/material"
-// )
+type EventLog struct {
+	TimeGenerated string `json:"TimeGenerated"`
+	Message       string `json:"Message"`
+}
 
-// var (
-// 	button1 widget.Clickable
-// 	button2 widget.Clickable
-// 	logs    = []string{"Log 1: Initialization complete.", "Log 2: Connection established.", "Log 3: Data received."}
-// )
+var eventLogs []EventLog
 
-// func showDashboard() {
-// 	go func() {
-// 		window := new(app.Window)
-// 		window.Option(app.Title("Synchronizer Dashboard"))
-// 		setWindowIcon(window)
-// 		// window.Option(app.Icon("images/icon1.ico"))
-// 		err := run(window)
-// 		if err != nil {
-// 			log.Fatal(err)
-// 		}
-// 		// os.Exit(0)
-// 	}()
-// 	// app.Main()
+func layoutDashboard() *fyne.Container {
+	// Create a table widget to display the event logs
+	table := widget.NewTable(
+		func() (int, int) { return len(eventLogs) + 1, 2 },
+		func() fyne.CanvasObject { return widget.NewLabel("") },
+		func(tci widget.TableCellID, co fyne.CanvasObject) {
+			label := co.(*widget.Label)
+			if tci.Row == 0 {
+				if tci.Col == 0 {
+					label.SetText("Time")
+				} else {
+					label.SetText("Message")
+				}
+			} else {
+				if tci.Col == 0 {
+					label.SetText(eventLogs[tci.Row-1].TimeGenerated)
+				} else {
+					label.SetText(eventLogs[tci.Row-1].Message)
+				}
+			}
+		},
+	)
 
-// 	// // PowerShell command to get the last 10 events from the specified service
-// 	// psCommand := fmt.Sprintf("Get-EventLog -LogName Application -Source %s -Newest 10", serviceName)
+	table.SetColumnWidth(0, 300)
+	table.SetColumnWidth(1, 500)
 
-// 	// // Execute the PowerShell command
-// 	// cmd := exec.Command("powershell", "-Command", psCommand)
+	content := container.NewStack(table)
+	return content
+}
 
-// 	// // Capture the output
-// 	// output, err := cmd.CombinedOutput()
-// 	// if err != nil {
-// 	// 	log.Fatalf("Failed to execute PowerShell command: %v", err)
-// 	// }
+func openDashboard() {
+	// Create a new window
 
-// 	// // Print the output
-// 	// fmt.Println(string(output))
-// }
+	myWindow := myApp.NewWindow(fmt.Sprintf("%s event viewer", serviceName))
+	myWindow.Resize(fyne.NewSize(1000, 400))
 
-// func run(window *app.Window) error {
-// 	theme := material.NewTheme()
-// 	var ops op.Ops
-// 	var eventLogs string
+	myWindow.SetContent(layoutDashboard())
 
-// 	fetchLogs := func() string {
-// 		// ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-// 		// defer cancel()
+	// Set the content of the window
+	updateList := func() {
+		// Define the PowerShell command
+		cmd := exec.Command("powershell", "-Command", "Get-EventLog", "-LogName", "Application", "-Source", serviceName, "-Newest", lastEventCount, "| Select-Object @{Name='TimeGenerated';Expression={$_.TimeGenerated.ToString('yyyy-MM-dd HH:mm:ss')}}, Message | ConvertTo-Json")
+		// cmd := exec.Command("powershell", "-Command", `
+		// 	Get-EventLog -LogName Application -Source  -Newest 10 |
+		// 	Select-Object @{Name='TimeGenerated';Expression={$_.TimeGenerated.ToString('yyyy-MM-dd HH:mm:ss')}}, Message |
+		// 	ConvertTo-Json
+		// `)
 
-// 		psCommand := fmt.Sprintf("Get-EventLog -LogName Application -Source %s -Newest 10", serviceName)
-// 		cmd := exec.Command("powershell", "-Command", psCommand)
+		// Capture the output
+		output, err := cmd.CombinedOutput()
+		if err != nil {
+			fmt.Printf("Error executing command: %s\n", err)
+			return
+		}
 
-// 		var out bytes.Buffer
-// 		cmd.Stdout = &out
-// 		if err := cmd.Run(); err != nil {
-// 			return fmt.Sprintf("Error fetching logs: %v", err)
-// 		}
-// 		return out.String()
-// 	}
+		// Parse the JSON output
+		err = json.Unmarshal(output, &eventLogs)
+		if err != nil {
+			fmt.Printf("Error parsing JSON: %s\n", err)
+			return
+		}
 
-// 	// Ticker to fetch logs every 30 seconds
-// 	ticker := time.NewTicker(30 * time.Second)
-// 	defer ticker.Stop()
+		// Refresh the table to display the updated data
+		myWindow.Content().Refresh()
+	}
 
-// 	// Goroutine to fetch logs periodically
-// 	go func() {
-// 		for range ticker.C {
-// 			eventLogs = fetchLogs()
-// 			window.Invalidate()
-// 			log.Printf("fetching logs: %s", eventLogs)
-// 		}
-// 	}()
+	go func() {
+		for range time.Tick(10 * time.Second) {
+			updateList()
+		}
+	}()
 
-// 	for {
-// 		switch e := window.Event().(type) {
-// 		case app.DestroyEvent:
-// 			return e.Err
-// 		case app.FrameEvent:
-// 			gtx := app.NewContext(&ops, e)
-// 			layoutUI(gtx, theme)
-// 			e.Frame(gtx.Ops)
-// 		}
-// 	}
-// }
+	myWindow.SetCloseIntercept(func() {
+		myWindow.Hide() // Hide the window instead of closing it
+	})
 
-// func layoutUI(gtx layout.Context, th *material.Theme) {
-// 	layout.Flex{
-// 		Axis: layout.Vertical,
-// 	}.Layout(gtx,
-// 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-// 			return layoutButtons(gtx, th)
-// 		}),
-// 		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-// 			return layoutLogs(gtx, th)
-// 		}),
-// 	)
-// }
+	// Load and set the running icon for the window
+	runningIcon, err := fyne.LoadResourceFromPath(appIcon)
+	if err != nil {
+		log.Printf("Failed to load running icon: %v", err)
+		// Consider whether you want to return the error or continue without the icon
+	} else {
+		myWindow.SetIcon(runningIcon)
+	}
 
-// func layoutButtons(gtx layout.Context, th *material.Theme) layout.Dimensions {
-// 	return layout.Flex{
-// 		Axis:      layout.Horizontal,
-// 		Spacing:   layout.SpaceBetween,
-// 		Alignment: layout.Middle,
-// 	}.Layout(gtx,
-// 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-// 			for button1.Clicked(gtx) {
-// 				logs = append(logs, "Button 1 clicked")
-// 			}
-// 			btn := material.Button(th, &button1, "Button 1")
-// 			return btn.Layout(gtx)
-// 		}),
-// 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-// 			for button2.Clicked(gtx) {
-// 				logs = append(logs, "Button 2 clicked")
-// 			}
-// 			btn := material.Button(th, &button2, "Button 2")
-// 			return btn.Layout(gtx)
-// 		}),
-// 	)
-// }
-
-// func layoutLogs(gtx layout.Context, th *material.Theme) layout.Dimensions {
-// 	list := layout.List{Axis: layout.Vertical}
-// 	return list.Layout(gtx, len(logs), func(gtx layout.Context, i int) layout.Dimensions {
-// 		log := logs[i]
-// 		lbl := material.Body1(th, log)
-// 		lbl.Color = color.NRGBA{R: 0x00, G: 0x00, B: 0x00, A: 0xFF}
-// 		return lbl.Layout(gtx)
-// 	})
-// }
+	// Show the window
+	myWindow.Show()
+}
