@@ -1,112 +1,98 @@
 package main
 
 import (
+	"embed"
+	"flag"
 	"fmt"
 	"log"
 	"os"
-	"time"
+	"strings"
 
-	"fyne.io/fyne/v2/app"
-	"github.com/getlantern/systray"
+	"golang.org/x/sys/windows/svc"
+	"golang.org/x/sys/windows/svc/mgr"
 )
 
-var serviceName = "SmartabaseSyncService"
-var appIcon = "./images/app_icon.ico"
-var serviceRunningIcon = "./images/running.ico"
-var serviceStoppedIcon = "./images/not_running.ico"
-var serviceNotInstalledIcon = "./images/not_installed.ico"
-var lastEventCount = "50"
+//go:embed images/*.ico
+var icons embed.FS
 
-var myApp = app.New()
+var svcName = "SmartCoachCloudSyncEventViewer"
 
-func onReady() {
+const serviceMonitoredName = "SmartabaseSyncService"
 
-	runningIcon, err := os.ReadFile(serviceRunningIcon)
-	if err != nil {
-		log.Fatal(err)
-	}
-	stoppedIcon, err := os.ReadFile(serviceStoppedIcon)
-	if err != nil {
-		log.Fatal(err)
-	}
-	notInstalledIcon, err := os.ReadFile(serviceNotInstalledIcon)
-	if err != nil {
-		log.Fatal(err)
-	}
+const appIcon = "./images/app_icon.ico"
+const serviceRunningIcon = "./images/running.ico"
+const serviceStoppedIcon = "./images/not_running.ico"
+const serviceNotInstalledIcon = "./images/not_installed.ico"
+const lastEventCount = "50"
 
-	title := fmt.Sprintf("%s event viewer", serviceName)
-	runningStatus := fmt.Sprintf("%s running", serviceName)
-	stoppedStatus := fmt.Sprintf("%s stopped", serviceName)
-	notInstalledStatus := fmt.Sprintf("%s not installed", serviceName)
-
-	systray.SetTitle(title)
-	systray.SetTooltip(title)
-	systray.SetIcon(runningIcon)
-
-	// Add menu items
-	mServiceStatus := systray.AddMenuItem(runningStatus, "Service status")
-	systray.AddSeparator()
-	mDashboard := systray.AddMenuItem("Show dashboard", "Open the dashboard")
-	mStartService := systray.AddMenuItem("Start service", "Start the service")
-	mStopService := systray.AddMenuItem("Stop service", "Stop the service")
-
-	mStartService.Hide()
-
-	// Handle menu item clicks
-	go func() {
-		for {
-			select {
-			case <-mDashboard.ClickedCh:
-				openDashboard()
-			case <-mStartService.ClickedCh:
-				startService(serviceName)
-			case <-mStopService.ClickedCh:
-				stopService(serviceName)
-			case <-mServiceStatus.ClickedCh:
-
-			}
-
-		}
-	}()
-
-	// Monitor service status
-	go func() {
-		var previousStatus int
-		for {
-			status := isServiceRunning(serviceName)
-			if status != previousStatus {
-				previousStatus = status
-				switch status {
-				case 0: // Running
-					systray.SetIcon(runningIcon)
-					mServiceStatus.SetTitle(runningStatus)
-					mStartService.Hide()
-					mStopService.Show()
-				case 1: // Stopped
-					systray.SetIcon(stoppedIcon)
-					mServiceStatus.SetTitle(stoppedStatus)
-					mStartService.Show()
-					mStopService.Hide()
-				default: // Not installed
-					systray.SetIcon(notInstalledIcon)
-					mServiceStatus.SetTitle(notInstalledStatus)
-					mStartService.Hide()
-					mStopService.Hide()
-					mDashboard.Hide()
-				}
-			}
-			time.Sleep(5 * time.Second)
-		}
-	}()
-}
-
-func onExit() {
-	fmt.Println("Chiusura dell'applicazione...")
+func usage(errmsg string) {
+	fmt.Fprintf(os.Stderr,
+		"%s\n\n"+
+			"usage: %s <command>\n"+
+			"       where <command> is one of\n"+
+			"       install, remove, debug, start, stop, pause or continue.\n",
+		errmsg, os.Args[0])
+	os.Exit(2)
 }
 
 func main() {
-	go func() {
-		systray.Run(onReady, onExit)
-	}()
-	myApp.Run()
+
+	// set variable svcName from command line arguments
+	flag.StringVar(&svcName, "name", svcName, "name of the service")
+	flag.Parse()
+
+	// check if the application is running as a service or not
+	inService, err := svc.IsWindowsService()
+	if err != nil {
+		log.Fatalf("failed to determine if we are running in service: %v", err)
+	}
+	if inService {
+		runService(svcName, false)
+		return
+	}
+
+	if len(os.Args) < 2 {
+		usage("no command specified")
+	}
+
+	cmd := strings.ToLower(os.Args[1])
+	switch cmd {
+	case "debug":
+		runService(svcName, true)
+		return
+	case "install":
+		err = installService(svcName, mgr.Config{
+			DisplayName: "Smartcoach-Sync-Event-Viewer",
+			Description: "Smartcoach Cloud Sync Service Event Viewer",
+			StartType:   mgr.StartAutomatic,
+		})
+		if err == nil {
+			log.Printf("Service %s installed!", svcName)
+		}
+	case "remove":
+		err = removeService(svcName)
+		if err == nil {
+			log.Printf("Service %s removed!", svcName)
+		}
+	case "start":
+		err = startService(svcName)
+		if err == nil {
+			log.Printf("Service %s started!", svcName)
+		}
+	case "stop":
+		err = controlService(svcName, svc.Stop, svc.Stopped)
+		if err == nil {
+			log.Printf("Service %s stopped!", svcName)
+		}
+	case "pause":
+		err = controlService(svcName, svc.Pause, svc.Paused)
+	case "continue":
+		err = controlService(svcName, svc.Continue, svc.Running)
+	default:
+		usage(fmt.Sprintf("invalid command %s", cmd))
+	}
+	if err != nil {
+		log.Fatalf("failed to %s %s: %v", cmd, svcName, err)
+	}
+	return
 }
