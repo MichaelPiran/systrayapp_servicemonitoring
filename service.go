@@ -1,116 +1,90 @@
 package main
 
 import (
-	"fmt"
-	"strings"
-	"time"
+	"log"
+	"os/exec"
 
-	"fyne.io/fyne/v2/app"
-	"fyne.io/fyne/v2/container"
-	"fyne.io/fyne/v2/widget"
-	"github.com/getlantern/systray"
 	"golang.org/x/sys/windows/svc"
-	"golang.org/x/sys/windows/svc/debug"
-	"golang.org/x/sys/windows/svc/eventlog"
+	"golang.org/x/sys/windows/svc/mgr"
 )
 
-var elog debug.Log
+// func isServiceRunning(name string) int {
+// 	processes, err := process.Processes()
+// 	if err != nil {
+// 		log.Println("Error fetching processes:", err)
+// 		return 2
+// 	}
+// 	for _, p := range processes {
+// 		pName, err := p.Name()
+// 		log.Println(pName)
+// 		if err == nil && pName == name {
+// 			return 0
+// 		}
+// 	}
+// 	return 1
+// }
 
-type goService struct{}
+func isServiceRunning(name string) int {
+	// Open the Windows Service Control Manager
+	m, err := mgr.Connect()
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer m.Disconnect()
 
-func (m *goService) Execute(args []string, r <-chan svc.ChangeRequest, changes chan<- svc.Status) (ssec bool, errno uint32) {
-	const cmdsAccepted = svc.AcceptStop | svc.AcceptShutdown | svc.AcceptPauseAndContinue
-	changes <- svc.Status{State: svc.StartPending}
-	fasttick := time.Tick(30 * time.Second)
-	slowtick := time.Tick(3600 * time.Second)
-	tick := fasttick
-	changes <- svc.Status{State: svc.Running, Accepts: cmdsAccepted}
+	// Get a list of all services
+	services, err := m.ListServices()
+	if err != nil {
+		log.Fatal(err)
+	}
 
-	// Initialize systray and Fyne app
-	go func() {
-		systray.Run(onSystrayReady, onSystrayExit)
-	}()
+	for _, serviceName := range services {
+		// Open the service
+		s, err := m.OpenService(serviceName)
+		if err != nil {
+			continue
+		}
+		defer s.Close()
 
-	go func() {
-		myApp := app.New()
-		myWindow := myApp.NewWindow("Fyne Dialog")
-		myWindow.SetContent(container.NewVBox(
-			widget.NewLabel("Hello, Fyne!"),
-			widget.NewButton("Quit", func() {
-				myApp.Quit()
-			}),
-		))
-		myWindow.ShowAndRun()
-	}()
+		// Get the service status
+		status, err := s.Query()
+		if err != nil {
+			continue
+		}
 
-loop:
-	for {
-		select {
-		case <-tick:
-			// runApp()
-		case c := <-r:
-			switch c.Cmd {
-			case svc.Interrogate:
-				changes <- c.CurrentStatus
-				// Testing deadlock from https://code.google.com/p/winsvc/issues/detail?id=4
-				time.Sleep(100 * time.Millisecond)
-				changes <- c.CurrentStatus
-			case svc.Stop, svc.Shutdown:
-				// golang.org/x/sys/windows/svc.TestExample is verifying this output.
-				testOutput := strings.Join(args, "-")
-				testOutput += fmt.Sprintf("-%d", c.Context)
-				elog.Info(1, testOutput)
-				break loop
-			case svc.Pause:
-				changes <- svc.Status{State: svc.Paused, Accepts: cmdsAccepted}
-				tick = slowtick
-			case svc.Continue:
-				changes <- svc.Status{State: svc.Running, Accepts: cmdsAccepted}
-				tick = fasttick
-			default:
-				elog.Error(1, fmt.Sprintf("unexpected control request #%d", c))
+		// Check if the service is running or stopped
+		if serviceName == name {
+			switch status.State {
+			case svc.Running: // Running
+				// fmt.Printf("Service is running")
+				return 0
+			case svc.Stopped: // Stopped
+				// fmt.Printf("Service is stopped")
+				return 1
+			default: // Not installed
+				// fmt.Printf("Service is not installed")
+				return 2
 			}
 		}
 	}
-	changes <- svc.Status{State: svc.StopPending}
-	return
+	return 2
+
 }
 
-func runService(name string, isDebug bool) {
-	var err error
-	if isDebug {
-		elog = debug.New(name)
-	} else {
-		elog, err = eventlog.Open(name)
-		if err != nil {
-			return
-		}
-	}
-	defer elog.Close()
-
-	elog.Info(1, fmt.Sprintf("starting %s service", name))
-	run := svc.Run
-	if isDebug {
-		run = debug.Run
-	}
-	err = run(name, &goService{})
+func startService(name string) {
+	err := exec.Command("sc", "start", name).Run()
 	if err != nil {
-		elog.Error(1, fmt.Sprintf("%s service failed: %v", name, err))
-		return
+		log.Println("Error starting service:", err)
+	} else {
+		log.Println("Service started:", name)
 	}
-	elog.Info(1, fmt.Sprintf("%s service stopped", name))
 }
 
-func onSystrayReady() {
-	systray.SetTitle("My Systray App")
-	systray.SetTooltip("My Systray App Tooltip")
-	mQuit := systray.AddMenuItem("Quit", "Quit the application")
-	go func() {
-		<-mQuit.ClickedCh
-		systray.Quit()
-	}()
-}
-
-func onSystrayExit() {
-	// Clean up here
+func stopService(name string) {
+	err := exec.Command("sc", "stop", name).Run()
+	if err != nil {
+		log.Println("Error stopping service:", err)
+	} else {
+		log.Println("Service stopped:", name)
+	}
 }

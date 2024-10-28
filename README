@@ -1,14 +1,6 @@
-install:
-<SERVICENAME> install
 
-start:
-<SERVICENAME> start
-
-stop:
-<SERVICENAME> stop
-
-remove:
-<SERVICENAME> remove
 
 build:
 go build -o <SERVICENAME>.exe
+
+go build -ldflags="-H windowsgui" -o SmartcoachSyncServiceEventViewer.exe .
