@@ -1,10 +1,12 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
 	"os/exec"
+	"syscall"
 	"time"
 
 	"fyne.io/fyne/v2"
@@ -52,6 +54,8 @@ func layoutDashboard() *fyne.Container {
 
 func openDashboard() {
 	stopUpdating = false
+	ctx, cancel := context.WithCancel(context.Background())
+
 	// Create a new window
 	myWindow := myApp.NewWindow(fmt.Sprintf("%s event viewer", serviceName))
 	myWindow.Resize(fyne.NewSize(1000, 400))
@@ -66,6 +70,8 @@ func openDashboard() {
 
 		// Define the PowerShell command
 		cmd := exec.Command("powershell", "-WindowStyle", "Hidden", "Get-EventLog", "-LogName", "Application", "-Source", serviceName, "-Newest", lastEventCount, "| Select-Object @{Name='TimeGenerated';Expression={$_.TimeGenerated.ToString('yyyy-MM-dd HH:mm:ss')}}, Message | ConvertTo-Json")
+
+		cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
 
 		// Capture the output
 		output, err := cmd.CombinedOutput()
@@ -86,23 +92,31 @@ func openDashboard() {
 	}
 
 	go func() {
-		for range time.Tick(10 * time.Second) {
-			updateList()
+		ticker := time.NewTicker(10 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				updateList()
+			case <-ctx.Done():
+				return
+			}
 		}
 	}()
 
 	myWindow.SetCloseIntercept(func() {
 		stopUpdating = true
+		cancel()        // Cancel the context to stop the goroutine
 		myWindow.Hide() // Hide the window instead of closing it
 	})
 
 	// Load and set the running icon for the window
-	runningIcon, err := icons.ReadFile(appIcon)
+	appIcon, err := icons.ReadFile(serviceAppIcon)
 	if err != nil {
 		log.Printf("Failed to load running icon: %v", err)
 		// Consider whether you want to return the error or continue without the icon
 	} else {
-		myWindow.SetIcon(fyne.NewStaticResource("runningIcon", runningIcon))
+		myWindow.SetIcon(fyne.NewStaticResource("runningIcon", appIcon))
 	}
 
 	// Show the window

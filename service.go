@@ -3,6 +3,7 @@ package main
 import (
 	"log"
 	"os/exec"
+	"syscall"
 
 	"golang.org/x/sys/windows/svc"
 	"golang.org/x/sys/windows/svc/mgr"
@@ -72,7 +73,9 @@ func isServiceRunning(name string) int {
 }
 
 func startService(name string) {
-	err := exec.Command("sc", "start", name).Run()
+	cmd := exec.Command("sc", "start", name)
+	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
+	err := cmd.Run()
 	if err != nil {
 		log.Println("Error starting service:", err)
 	} else {
@@ -81,10 +84,23 @@ func startService(name string) {
 }
 
 func stopService(name string) {
-	err := exec.Command("sc", "stop", name).Run()
+	cmd := exec.Command("sc", "stop", name)
+	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
+	err := cmd.Run()
 	if err != nil {
 		log.Println("Error stopping service:", err)
 	} else {
 		log.Println("Service stopped:", name)
+	}
+}
+
+func installService(name string) {
+	cmd := exec.Command("sc", "install", name)
+	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
+	err := cmd.Run()
+	if err != nil {
+		log.Println("Error installing service:", err)
+	} else {
+		log.Println("Service installed:", name)
 	}
 }

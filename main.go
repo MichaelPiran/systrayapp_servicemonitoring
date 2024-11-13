@@ -13,12 +13,16 @@ import (
 //go:embed images/*.ico
 var icons embed.FS
 
-var serviceName = "smartcoach-sync"
-var appIcon = "images/app_icon.ico"
-var serviceRunningIcon = "images/running.ico"
-var serviceStoppedIcon = "images/not_running.ico"
-var serviceNotInstalledIcon = "images/not_installed.ico"
-var lastEventCount = "50"
+const appVersion = "0.0.0"
+
+const serviceName = "service_name"
+const serviceAppIcon = "images/app_icon.ico"
+const serviceRunningIcon = "images/running.ico"
+const serviceStoppedIcon = "images/not_running.ico"
+const serviceNotInstalledIcon = "images/not_installed.ico"
+const lastEventCount = "50"
+
+var option1, option2, option3 bool
 
 var myApp = app.New()
 
@@ -39,7 +43,7 @@ func onReady() {
 		log.Fatal(err)
 	}
 
-	title := fmt.Sprintf("%s event viewer", serviceName)
+	title := "service name"
 	runningStatus := fmt.Sprintf("%s running", serviceName)
 	stoppedStatus := fmt.Sprintf("%s stopped", serviceName)
 	notInstalledStatus := fmt.Sprintf("%s not installed", serviceName)
@@ -54,8 +58,12 @@ func onReady() {
 	mDashboard := systray.AddMenuItem("Show dashboard", "Open the dashboard")
 	mStartService := systray.AddMenuItem("Start service", "Start the service")
 	mStopService := systray.AddMenuItem("Stop service", "Stop the service")
+	mInstallService := systray.AddMenuItem("Install service", "Install the service")
+	// mSettingsService := systray.AddMenuItem("Settings", "Settings")
 
 	mStartService.Hide()
+	// mStopService.Hide()
+	mInstallService.Hide()
 
 	// Handle menu item clicks
 	go func() {
@@ -67,6 +75,10 @@ func onReady() {
 				startService(serviceName)
 			case <-mStopService.ClickedCh:
 				stopService(serviceName)
+			case <-mInstallService.ClickedCh:
+				installService(serviceName)
+			// case <-mSettingsService.ClickedCh:
+			// 	openSettings()
 			case <-mServiceStatus.ClickedCh:
 
 			}
@@ -87,14 +99,17 @@ func onReady() {
 					mServiceStatus.SetTitle(runningStatus)
 					mStartService.Hide()
 					mStopService.Show()
+					mInstallService.Hide()
 				case 1: // Stopped
 					systray.SetIcon(stoppedIcon)
 					mServiceStatus.SetTitle(stoppedStatus)
 					mStartService.Show()
 					mStopService.Hide()
+					mInstallService.Hide()
 				default: // Not installed
 					systray.SetIcon(notInstalledIcon)
 					mServiceStatus.SetTitle(notInstalledStatus)
+					mInstallService.Show()
 					mStartService.Hide()
 					mStopService.Hide()
 					mDashboard.Hide()
@@ -106,14 +121,11 @@ func onReady() {
 }
 
 func onExit() {
-	log.Println("Chiusura dell'applicazione...")
 }
 
 func main() {
-	log.Println("Application starting")
 	go func() {
 		systray.Run(onReady, onExit)
 	}()
 	myApp.Run()
-	log.Println("Application running")
 }
