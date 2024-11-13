@@ -12,7 +12,7 @@ This is a simple system tray application for monitoring services on Windows. It 
 
 
 ### Build
-    ```sh
-    go build -ldflags="-H windowsgui" -o SERVICENAME.exe .
-    ```
+```sh
+go build -ldflags="-H windowsgui" -o SERVICENAME.exe .
+```
 
